@@ -199,7 +199,7 @@
       : "";
     let entries = job.agent_trace || [];
     const requested = entries.findLastIndex(
-      (entry) => entry.event === "publish_requested",
+      (entry) => ["publish_requested", "processing_restarted"].includes(entry.event),
     );
     if (requested >= 0) entries = entries.slice(requested + 1);
     const trace = entries.filter((entry) => entry.tool);
