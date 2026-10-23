@@ -24,7 +24,7 @@ TOOLS = {
 }
 
 
-def tool_definitions():
+def tool_definitions(publish_requested=False):
     return [
         {
             "type": "function",
@@ -35,4 +35,5 @@ def tool_definitions():
             },
         }
         for name, (schema, _, description) in TOOLS.items()
+        if not (publish_requested and name == "save_article")
     ]

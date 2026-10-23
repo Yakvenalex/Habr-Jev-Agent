@@ -21,3 +21,4 @@ class AgentState:
     source_checked: bool = False
     duplicates_checked: bool = False
     trace: list = field(default_factory=list)
+    publish_requested: bool = False

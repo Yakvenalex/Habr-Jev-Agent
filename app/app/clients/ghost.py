@@ -61,6 +61,7 @@ class GhostClient:
                         "custom_excerpt": publication.summary,
                         "tags": [{"name": tag} for tag in publication.tags],
                         "status": "published",
+                        "visibility": "public",
                     }
                 ]
             },

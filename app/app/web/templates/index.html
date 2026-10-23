@@ -49,7 +49,7 @@
                 черновика' }}</strong
               ><small
                 >{{ 'До ' ~ max_posts ~ ' публикаций в час' if auto_publish else
-                'Статьи сохраняются без отправки в блог' }}</small
+                'Публикация — по кнопке в статье' }}</small
               >
             </div>
           </div>
@@ -215,14 +215,24 @@
               <p class="eyebrow">03 / РЕЗУЛЬТАТ РАБОТЫ</p>
               <h2 id="article-title"></h2>
             </div>
-            <a
-              id="ghost-link"
-              class="button secondary"
-              target="_blank"
-              rel="noopener noreferrer"
-              hidden
-              >Открыть в блоге ↗</a
-            >
+            <div class="article-actions">
+              <button
+                id="publish-button"
+                class="button primary"
+                type="button"
+                hidden
+              >
+                Опубликовать черновик ↗
+              </button>
+              <a
+                id="ghost-link"
+                class="button secondary"
+                target="_blank"
+                rel="noopener noreferrer"
+                hidden
+                >Открыть в блоге ↗</a
+              >
+            </div>
           </div>
           <p id="article-summary" class="article-summary"></p>
           <div id="article-tags" class="article-tags"></div>

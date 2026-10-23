@@ -24,8 +24,16 @@ class Database:
             cursor.close()
 
     async def initialize(self):
-        async with self.engine.begin() as conn:
+        async with self.engine.connect() as conn:
+            # API and worker serialize this additive upgrade of existing databases.
+            await conn.exec_driver_sql("BEGIN IMMEDIATE")
             await conn.run_sync(Base.metadata.create_all)
+            columns = (await conn.exec_driver_sql("PRAGMA table_info(jobs)")).all()
+            if "publish_requested" not in {column[1] for column in columns}:
+                await conn.exec_driver_sql(
+                    "ALTER TABLE jobs ADD COLUMN publish_requested BOOLEAN NOT NULL DEFAULT 0"
+                )
+            await conn.commit()
 
     async def close(self):
         await self.engine.dispose()

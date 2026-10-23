@@ -4,7 +4,7 @@ import json
 from pydantic import ValidationError
 from sqlalchemy import text
 
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import PUBLISH_DRAFT_PROMPT, SYSTEM_PROMPT
 from app.agent.registry import TOOLS, tool_definitions
 from app.agent.state import RejectArticle
 from app.agent.tools.sources import require_lease
@@ -22,22 +22,30 @@ async def checkpoint(ctx, step: int, entry: dict):
 
 async def run_agent(ctx, llm):
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": SYSTEM_PROMPT
+            + (PUBLISH_DRAFT_PROMPT if ctx.state.publish_requested else ""),
+        },
         {
             "role": "user",
             "content": json.dumps(
                 {
-                    "task": "Подготовь технологическую публикацию",
+                    "task": "Проверь и опубликуй сохранённый черновик"
+                    if ctx.state.publish_requested
+                    else "Подготовь технологическую публикацию",
                     "news_id": ctx.state.news_id,
-                    "auto_publish": ctx.settings.auto_publish,
+                    "auto_publish": ctx.settings.auto_publish or ctx.state.publish_requested,
                 },
                 ensure_ascii=False,
             ),
         },
     ]
+    definitions = tool_definitions(ctx.state.publish_requested)
+    allowed_names = {tool["function"]["name"] for tool in definitions}
     async with asyncio.timeout(ctx.settings.agent_timeout_seconds):
         for step in range(1, ctx.settings.agent_max_steps + 1):
-            message = await llm.complete(messages, tool_definitions())
+            message = await llm.complete(messages, definitions)
             calls = message.get("tool_calls", [])
             # Only known wire fields go back to llama.cpp.
             assistant = {"role": "assistant", "content": message.get("content")}
@@ -84,7 +92,7 @@ async def run_agent(ctx, llm):
                 raise RejectArticle("too_many_tool_calls")
             for call in calls:
                 name = call.get("function", {}).get("name")
-                if name not in TOOLS:
+                if name not in allowed_names:
                     result = {"error": "unknown_tool"}
                 else:
                     schema, function, _ = TOOLS[name]

@@ -10,7 +10,12 @@ from app.db.models import News, Publication, utcnow
 
 
 async def store_result(ctx, post):
-    if post.get("status") != "published" or not post.get("id") or not post.get("url"):
+    if (
+        post.get("status") != "published"
+        or post.get("visibility", "public") != "public"
+        or not post.get("id")
+        or not post.get("url")
+    ):
         raise PublicationUncertain("ghost_post_not_confirmed_published")
     async with ctx.db.sessions() as session:
         await session.execute(text("BEGIN IMMEDIATE"))
@@ -27,6 +32,18 @@ async def store_result(ctx, post):
 
 
 async def publish_article(ctx, _args):
+    if ctx.state.publish_requested:
+        async with ctx.db.sessions() as session:
+            await require_lease(session, ctx.state)
+            saved = await session.scalar(
+                select(Publication).where(Publication.job_id == ctx.state.job_id)
+            )
+        if saved and saved.status not in {"published", "submitting"}:
+            category, _ = await ctx.laya.classify(
+                saved.title + "\n" + plain_text(saved.content_html)
+            )
+            if category.choice != "technology":
+                raise RejectArticle("generated_article_not_technology")
     async with ctx.db.sessions() as session:
         await session.execute(text("BEGIN IMMEDIATE"))
         await require_lease(session, ctx.state)
@@ -55,7 +72,7 @@ async def publish_article(ctx, _args):
             similar = await matches(session, news, published_only=True)
             if any(item["score"] >= ctx.settings.similar_news_threshold for item in similar):
                 raise RejectArticle("similar_publication_exists")
-            if not ctx.settings.auto_publish:
+            if not (ctx.settings.auto_publish or ctx.state.publish_requested):
                 publication.status = "dry_run"
                 await session.commit()
                 return {"status": "dry_run", "reason": "auto_publish_disabled"}

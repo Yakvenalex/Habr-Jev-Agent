@@ -42,7 +42,8 @@
   };
   let generation = 0,
     polling = null,
-    busy = false;
+    busy = false,
+    selectedNewsId = null;
   const exampleTechnology = {
     title: "Группы задач asyncio.TaskGroup в Python",
     name: "Документация Python 3.12",
@@ -115,6 +116,8 @@
   function reset() {
     clearTimeout(polling);
     generation += 1;
+    selectedNewsId = null;
+    $("publish-button").hidden = true;
     $("categories").hidden = true;
     $("categories").replaceChildren();
     $("article-panel").hidden = true;
@@ -180,16 +183,26 @@
   }
   function renderJob(job) {
     const terminal = ["published", "skipped", "failed"].includes(job.status);
+    const publishing = job.publish_requested && !terminal;
     badge(
       job.status,
-      job.publication_status === "dry_run" ? "Черновик готов" : undefined,
+      publishing
+        ? "Публикация"
+        : job.publication_status === "dry_run"
+          ? "Черновик готов"
+          : undefined,
     );
     $("job-progress").textContent =
       `Шаг ${job.current_step} из ${document.body.dataset.maxSteps}`;
     $("job-attempt").textContent = job.attempts
       ? `Попытка ${job.attempts}`
       : "";
-    const trace = (job.agent_trace || []).filter((entry) => entry.tool);
+    let entries = job.agent_trace || [];
+    const requested = entries.findLastIndex(
+      (entry) => entry.event === "publish_requested",
+    );
+    if (requested >= 0) entries = entries.slice(requested + 1);
+    const trace = entries.filter((entry) => entry.tool);
     $("tool-trace").replaceChildren();
     trace.forEach((entry) => {
       const item = node(
@@ -216,19 +229,23 @@
           ? "Ожидает свободного worker"
           : "Агент анализирует материал и вызывает инструменты",
     );
-    const saved = ["published", "dry_run"].includes(job.publication_status);
+    const saved =
+      job.publication_status === "published" ||
+      (job.publication_status === "dry_run" && !job.publish_requested);
     stage(
       "publish",
-      saved ? "done" : terminal ? "muted" : "",
-      job.publication_status === "dry_run"
-        ? "Проверенный черновик без отправки в Ghost"
-        : job.status === "published"
-          ? "Статья опубликована в Ghost"
-          : job.publication_status === "draft"
-            ? "Черновик сохранён, ожидаем финальные проверки"
-            : terminal
-              ? "Статья не опубликована"
-              : "Ожидаем статью и финальные проверки",
+      saved ? "done" : publishing ? "active" : terminal ? "muted" : "",
+      publishing
+        ? "Агент повторно проверяет черновик перед отправкой в Ghost"
+        : job.publication_status === "dry_run"
+          ? "Проверенный черновик без отправки в Ghost"
+          : job.status === "published"
+            ? "Статья опубликована в Ghost"
+            : job.publication_status === "draft"
+              ? "Черновик сохранён, ожидаем финальные проверки"
+              : terminal
+                ? "Статья не опубликована"
+                : "Ожидаем статью и финальные проверки",
     );
     if (job.error) {
       $("outcome-reason").textContent = reasons[job.error] || job.error;
@@ -250,6 +267,13 @@
     if (!response.ok) throw new Error("Не удалось загрузить статью");
     const article = await response.json();
     if (ticket !== generation) return;
+    selectedNewsId = newsId;
+    $("publish-button").hidden =
+      !article.can_publish && !article.publish_pending;
+    $("publish-button").disabled = article.publish_pending;
+    $("publish-button").textContent = article.publish_pending
+      ? "Агент проверяет…"
+      : "Опубликовать черновик ↗";
     $("article-title").textContent = article.title;
     $("article-summary").textContent = article.summary;
     $("article-tags").replaceChildren(
@@ -411,6 +435,30 @@
   $("refresh-button").addEventListener("click", () =>
     history().catch((error) => notice(error.message, true)),
   );
+  $("publish-button").addEventListener("click", async () => {
+    const id = selectedNewsId,
+      ticket = generation;
+    if (!id || $("publish-button").disabled) return;
+    $("publish-button").disabled = true;
+    $("publish-button").textContent = "Отправляем агенту…";
+    notice();
+    try {
+      const result = await api(`/v1/news/${encodeURIComponent(id)}/publish`, {
+        method: "POST",
+      });
+      if (ticket !== generation) return;
+      clearTimeout(polling);
+      $("outcome-reason").hidden = true;
+      await inspect(id, result.job_id, ticket);
+      await history();
+    } catch (error) {
+      if (ticket === generation) {
+        notice(error.message, true);
+        $("publish-button").disabled = false;
+        $("publish-button").textContent = "Опубликовать черновик ↗";
+      }
+    }
+  });
   $("logout-button").addEventListener("click", async () => {
     try {
       await api("/auth/logout", { method: "POST" });

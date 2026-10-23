@@ -124,6 +124,7 @@ class Worker:
             news_id=job.news_id,
             lease_token=job.lease_token,
             trace=list(job.agent_trace or []),
+            publish_requested=job.publish_requested,
         )
         state.trace.append({"event": "attempt", "attempt": job.attempts})
         ctx = ToolContext(self.db, self.settings, state, self.laya, self.ghost)
@@ -152,7 +153,8 @@ class Worker:
                     publication = await session.scalar(
                         select(Publication).where(Publication.job_id == job.id)
                     )
-                if not publication or publication.status not in {"published", "dry_run"}:
+                accepted = {"published"} if job.publish_requested else {"published", "dry_run"}
+                if not publication or publication.status not in accepted:
                     reason = (
                         conclusion.reason
                         if conclusion.outcome == "skipped"

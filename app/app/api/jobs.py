@@ -22,6 +22,7 @@ async def get_job(job_id: UUID, request: Request):
             "status": job.status,
             "current_step": job.current_step,
             "attempts": job.attempts,
+            "publish_requested": job.publish_requested,
             "error": job.error,
             "ghost_url": publication.ghost_url if publication else None,
             "publication_status": publication.status if publication else None,

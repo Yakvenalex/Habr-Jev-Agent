@@ -136,6 +136,7 @@ async def test_ghost_jwt_and_publish():
             return httpx.Response(200, json={"posts": []})
         body = json.loads(request.content)
         assert body["posts"][0]["status"] == "published"
+        assert body["posts"][0]["visibility"] == "public"
         assert request.url.params["source"] == "html"
         return httpx.Response(
             201,
