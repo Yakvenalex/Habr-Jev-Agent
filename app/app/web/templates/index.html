@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>JEV — редакция технологических новостей</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%231d6a56'/%3E%3Ctext x='10' y='29' fill='white' font-size='29' font-family='Georgia'%3Ej%3C/text%3E%3C/svg%3E"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', path='/dashboard.css') }}"
+    />
+    <script src="{{ url_for('static', path='/dashboard.js') }}" defer></script>
+  </head>
+  <body
+    data-auto-publish="{{ 'true' if auto_publish else 'false' }}"
+    data-max-steps="{{ max_steps }}"
+  >
+    <div class="page">
+      <header class="masthead">
+        <a class="brand" href="/" aria-label="JEV, главная"
+          ><span class="brand-icon">j<span>.</span></span
+          ><span>JEV<span class="brand-sub">NEWSROOM</span></span></a
+        >
+        <nav class="architecture" aria-label="Архитектура">
+          <span><i></i>Laya</span><b>→</b><span>Gemma</span><b>→</b
+          ><span>Ghost</span>
+        </nav>
+        <a class="docs-link" href="/docs" target="_blank" rel="noopener"
+          >Swagger API <span>↗</span></a
+        >
+      </header>
+      <main>
+        <section class="intro">
+          <div>
+            <p class="eyebrow">SYSTEM ONE + LLM / В ДЕЙСТВИИ</p>
+            <h1>Из новости — в публикацию<span>.</span></h1>
+            <p class="lede">
+              Отправь исходный материал и посмотри, как агент принимает решения.
+            </p>
+          </div>
+          <div class="mode">
+            <span class="mode-dot {{ 'live' if auto_publish else '' }}"></span>
+            <div>
+              <strong
+                >{{ 'Автопубликация включена' if auto_publish else 'Режим
+                черновика' }}</strong
+              ><small
+                >{{ 'До ' ~ max_posts ~ ' публикаций в час' if auto_publish else
+                'Статьи сохраняются без отправки в блог' }}</small
+              >
+            </div>
+          </div>
+        </section>
+        <div class="connection">
+          <span class="connection-label"
+            ><span class="dot connected"></span>Редакция подключена</span
+          ><span class="signed-user">{{ username }}</span
+          ><button id="logout-button" class="text-button" type="button">
+            Выйти ↗
+          </button>
+        </div>
+        <p
+          id="notice"
+          class="notice"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></p>
+        <div class="workspace">
+          <section class="panel input-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">01 / ВХОДЯЩИЙ МАТЕРИАЛ</p>
+                <h2>Что нового?</h2>
+              </div>
+              <span class="small-label">До 20 000 символов</span>
+            </div>
+            <div class="examples">
+              <span>Попробовать:</span
+              ><button type="button" data-example="technology">
+                Технологии <span>↗</span></button
+              ><button type="button" data-example="sports">
+                Спорт <span>↗</span>
+              </button>
+            </div>
+            <form id="news-form">
+              <label for="title"
+                >Заголовок <span class="optional">необязательно</span></label
+              ><input
+                id="title"
+                name="title"
+                maxlength="500"
+                placeholder="Коротко о главном"
+              />
+              <label for="content">Текст источника</label
+              ><textarea
+                id="content"
+                name="content"
+                rows="9"
+                maxlength="20000"
+                required
+                placeholder="Вставь исходную новость. Агент будет опираться на факты из этого текста."
+              ></textarea>
+              <div class="counter">
+                <span>Полный текст, а не ссылка на него</span
+                ><span id="char-count">0 / 20 000</span>
+              </div>
+              <div class="form-row">
+                <div>
+                  <label for="source-name">Источник</label
+                  ><input
+                    id="source-name"
+                    name="source-name"
+                    maxlength="200"
+                    required
+                    value="Ручной ввод"
+                  />
+                </div>
+                <div>
+                  <label for="source-type">Тип источника</label
+                  ><select id="source-type" name="source-type">
+                    <option value="manual">Вручную</option>
+                    <option value="telegram">Telegram</option>
+                    <option value="rss">RSS</option>
+                    <option value="website">Сайт</option>
+                    <option value="other">Другой</option>
+                  </select>
+                </div>
+              </div>
+              <label for="source-url"
+                >Ссылка на первоисточник
+                <span class="optional">для статьи</span></label
+              ><input
+                id="source-url"
+                name="source-url"
+                type="url"
+                maxlength="2048"
+                placeholder="https://…"
+              />
+              <div class="submit-row">
+                <button id="submit-button" class="button primary" type="submit">
+                  Отправить агенту <span>→</span></button
+                ><span id="submit-hint"></span>
+              </div>
+            </form>
+          </section>
+          <section class="panel process-panel" aria-live="polite">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">02 / РАБОТА РЕДАКЦИИ</p>
+                <h2>Путь материала</h2>
+              </div>
+              <span id="result-badge" class="badge">Ожидание</span>
+            </div>
+            <div class="pipeline">
+              <div class="stage" id="stage-ingress">
+                <span class="stage-number">1</span>
+                <div>
+                  <h3>Приём и дубликаты</h3>
+                  <p id="ingress-text">Проверка и сохранение новости</p>
+                </div>
+                <span class="stage-mark"></span>
+              </div>
+              <div class="stage" id="stage-laya">
+                <span class="stage-number">2</span>
+                <div>
+                  <h3>Тематический фильтр <small>Laya</small></h3>
+                  <p id="laya-text">Быстрое решение о маршруте</p>
+                </div>
+                <span class="stage-mark"></span>
+              </div>
+              <div id="categories" class="categories" hidden></div>
+              <div class="stage" id="stage-agent">
+                <span class="stage-number">3</span>
+                <div>
+                  <h3>Редактор и инструменты <small>Gemma</small></h3>
+                  <p id="agent-text">Анализ источника и подготовка статьи</p>
+                </div>
+                <span class="stage-mark"></span>
+              </div>
+              <div class="stage" id="stage-publish">
+                <span class="stage-number">4</span>
+                <div>
+                  <h3>Проверки и результат</h3>
+                  <p id="publish-text">Готовая статья или причина отказа</p>
+                </div>
+                <span class="stage-mark"></span>
+              </div>
+            </div>
+            <div id="empty-state" class="empty-state">
+              <span class="empty-symbol">✳</span>
+              <h3>Каждая новость проходит свой путь</h3>
+              <p>
+                Laya определяет тему. Gemma подключается, когда материалу нужна
+                редакторская работа.
+              </p>
+            </div>
+            <div id="job-details" class="job-details" hidden>
+              <div class="detail-heading">
+                <span id="job-progress">Шаги агента</span
+                ><span id="job-attempt"></span>
+              </div>
+              <ol id="tool-trace" class="tool-trace"></ol>
+              <p id="outcome-reason" class="outcome-reason" hidden></p>
+              <p id="news-id" class="record-id"></p>
+            </div>
+          </section>
+        </div>
+        <section id="article-panel" class="panel article-panel" hidden>
+          <div class="article-heading">
+            <div>
+              <p class="eyebrow">03 / РЕЗУЛЬТАТ РАБОТЫ</p>
+              <h2 id="article-title"></h2>
+            </div>
+            <a
+              id="ghost-link"
+              class="button secondary"
+              target="_blank"
+              rel="noopener noreferrer"
+              hidden
+              >Открыть в блоге ↗</a
+            >
+          </div>
+          <p id="article-summary" class="article-summary"></p>
+          <div id="article-tags" class="article-tags"></div>
+          <iframe
+            id="article-preview"
+            title="Предпросмотр подготовленной статьи"
+            sandbox=""
+            referrerpolicy="no-referrer"
+          ></iframe>
+          <details class="fact-notes">
+            <summary>Примечания к фактам</summary>
+            <p id="fact-notes"></p>
+          </details>
+        </section>
+        <section class="history">
+          <div class="history-heading">
+            <div>
+              <p class="eyebrow">ЛЕНТА ОБРАБОТКИ</p>
+              <h2>Последние материалы</h2>
+            </div>
+            <button id="refresh-button" class="text-button">Обновить ↻</button>
+          </div>
+          <div id="history-list">
+            <p class="history-empty">Здесь появятся отправленные новости.</p>
+          </div>
+        </section>
+      </main>
+      <footer>
+        <span>Habr-Jev-Agent · собственный Python Agent Harness</span
+        ><span>Источник → решение → результат</span>
+      </footer>
+    </div>
+  </body>
+</html>

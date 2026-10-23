@@ -178,9 +178,9 @@ def test_settings_env(tmp_path, monkeypatch):
     monkeypatch.delenv("DEV_PROXY_KEY", raising=False)
     path = tmp_path / ".env"
     path.write_text(
-        "APP_ACCESS_TOKENS=one,two\nDEV_PROXY_KEY=secret\nLLM_BASE_URL=http://llm:8080/v1\n"
+        "APP_ACCESS_TOKENS=one,two\nDEV_PROXY_KEY=test-private-proxy-value\nLLM_BASE_URL=http://llm:8080/v1\n"
     )
     settings = Settings(_env_file=path)
     assert settings.access_tokens == ["one", "two"]
-    assert settings.dev_headers == {"X-Dev-Key": "secret"}
-    assert "secret" not in repr(settings)
+    assert settings.dev_headers == {"X-Dev-Key": "test-private-proxy-value"}
+    assert "test-private-proxy-value" not in repr(settings)

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Вход · JEV</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', path='/dashboard.css') }}"
+    />
+    <script src="{{ url_for('static', path='/login.js') }}" defer></script>
+  </head>
+  <body class="login-page">
+    <main class="login-card">
+      <a class="brand" href="/"
+        ><span class="brand-icon">j<span>.</span></span
+        ><span>JEV<span class="brand-sub">NEWSROOM</span></span></a
+      >
+      <p class="eyebrow">ТВОЯ ТЕХНОЛОГИЧЕСКАЯ РЕДАКЦИЯ</p>
+      <h1>С возвращением<span>.</span></h1>
+      <p class="lede">
+        Войди, чтобы отправлять новости и следить за работой агента.
+      </p>
+      <form id="login-form">
+        <label for="username">Логин</label
+        ><input
+          id="username"
+          name="username"
+          autocomplete="username"
+          required
+          autofocus
+          maxlength="200"
+        /><label for="password">Пароль</label
+        ><input
+          id="password"
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          required
+          maxlength="500"
+        />
+        <p id="login-error" class="notice error" role="alert" hidden></p>
+        <button id="login-button" class="button primary" type="submit">
+          Войти в редакцию <span>→</span>
+        </button>
+      </form>
+      <p class="login-footnote">Laya → Gemma → Ghost</p>
+    </main>
+  </body>
+</html>

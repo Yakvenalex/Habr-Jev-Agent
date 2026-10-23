@@ -30,7 +30,26 @@ class Source(BaseModel):
 
 
 class NewsInput(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+        json_schema_extra={
+            "example": {
+                "source": {
+                    "type": "manual",
+                    "name": "Python documentation",
+                    "url": "https://docs.python.org/3.12/library/asyncio-task.html#task-groups",
+                },
+                "title": "Группы задач asyncio.TaskGroup в Python",
+                "content": "Документация Python описывает asyncio.TaskGroup. Класс добавлен в "
+                "Python 3.11 и служит асинхронным контекстным менеджером для группы задач. "
+                "При выходе из контекста ожидается завершение задач. Если задача "
+                "завершается с исключением, отличным от CancelledError, остальные "
+                "задачи отменяются, а ошибки объединяются в ExceptionGroup.",
+                "language": "ru",
+            },
+        },
+    )
     source: Source
     title: str | None = Field(None, min_length=1, max_length=500)
     content: str = Field(min_length=1, max_length=20_000)

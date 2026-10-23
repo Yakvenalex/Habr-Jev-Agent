@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = Field(8001, ge=1, le=65535)
     app_access_tokens: SecretStr = SecretStr("")
+    web_username: str = "admin"
+    web_password: SecretStr = SecretStr("")
+    web_session_secret: SecretStr = SecretStr("")
+    web_session_hours: int = Field(12, ge=1, le=168)
+    web_cookie_secure: bool = False
     database_url: str = "sqlite+aiosqlite:///./data/agent.db"
     laya_base_url: str = "http://laya:8000"
     laya_model: str = "multilingual"
@@ -52,6 +57,11 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_categories(self):
+        if (
+            self.web_password.get_secret_value()
+            and len(self.web_session_secret.get_secret_value()) < 32
+        ):
+            raise ValueError("WEB_SESSION_SECRET must have at least 32 characters")
         if set(self.laya_categories) != {"world", "sports", "business", "technology"}:
             raise ValueError("LAYA_CATEGORIES must define world, sports, business, technology")
         if not self.database_url.startswith("sqlite+aiosqlite:///"):
