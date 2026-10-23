@@ -7,6 +7,7 @@ class Settings(BaseSettings):
 
     app_host: str = "0.0.0.0"
     app_port: int = Field(8001, ge=1, le=65535)
+    forwarded_allow_ips: str = "127.0.0.1"
     app_access_tokens: SecretStr = SecretStr("")
     web_username: str = "admin"
     web_password: SecretStr = SecretStr("")

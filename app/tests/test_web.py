@@ -107,3 +107,41 @@ async def test_article_preview_and_history(signed_in, env, payload):
     assert article["status"] == "dry_run" and "<p>" in article["content_html"]
     job = (await signed_in.get("/v1/jobs/" + result["job_id"])).json()
     assert any(entry.get("tool") == "save_article" for entry in job["agent_trace"])
+
+
+async def test_assets_use_same_origin_paths(signed_in):
+    response = await signed_in.get("/")
+    assert 'href="/static/dashboard.css"' in response.text
+    assert 'src="/static/dashboard.js"' in response.text
+    assert "http://test/static/" not in response.text
+    await signed_in.post("/auth/logout")
+    login = await signed_in.get("/login")
+    assert 'href="/static/dashboard.css"' in login.text
+    assert 'src="/static/login.js"' in login.text
+
+
+@pytest.mark.parametrize("trusted", [True, False])
+async def test_https_login_behind_trusted_proxy(env, trusted):
+    import httpx
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    from app.main import create_app
+
+    env.settings.web_password = SecretStr("test-password")
+    env.settings.web_session_secret = SecretStr("s" * 48)
+    application = create_app(env.settings, db=env.db, laya=env.laya, llm=env.llm, ghost=env.ghost)
+    wrapped = ProxyHeadersMiddleware(application, trusted_hosts="172.18.0.1")
+    peer = "172.18.0.1" if trusted else "203.0.113.5"
+    async with application.router.lifespan_context(application):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=wrapped, client=(peer, 1234)),
+            base_url="http://example.com",
+        ) as client:
+            response = await client.post(
+                "/auth/login",
+                json={"username": "admin", "password": "test-password"},
+                headers={"Origin": "https://example.com", "X-Forwarded-Proto": "https"},
+            )
+            assert response.status_code == (200 if trusted else 403)
+            if trusted:
+                assert "Secure" in response.headers["set-cookie"]

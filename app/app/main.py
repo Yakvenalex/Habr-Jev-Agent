@@ -130,7 +130,13 @@ def run():
     import uvicorn
 
     settings = Settings()
-    uvicorn.run(create_app(settings), host=settings.app_host, port=settings.app_port)
+    uvicorn.run(
+        create_app(settings),
+        host=settings.app_host,
+        port=settings.app_port,
+        proxy_headers=True,
+        forwarded_allow_ips=settings.forwarded_allow_ips,
+    )
 
 
 if __name__ == "__main__":
