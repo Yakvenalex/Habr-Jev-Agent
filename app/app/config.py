@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     agent_max_output_tokens: int = Field(2048, ge=128)
     external_timeout_seconds: float = Field(40, gt=0)
     auto_publish: bool = True
+    demo_mode: bool = False
     max_posts_per_hour: int = Field(5, ge=1)
     job_max_attempts: int = Field(3, ge=1, le=10)
     job_lease_seconds: int = Field(60, ge=6)

@@ -4,7 +4,7 @@ import json
 from pydantic import ValidationError
 from sqlalchemy import text
 
-from app.agent.prompts import PUBLISH_DRAFT_PROMPT, SYSTEM_PROMPT
+from app.agent.prompts import build_system_prompt
 from app.agent.registry import TOOLS, tool_definitions
 from app.agent.state import RejectArticle
 from app.agent.tools.sources import require_lease
@@ -24,8 +24,7 @@ async def run_agent(ctx, llm):
     messages = [
         {
             "role": "system",
-            "content": SYSTEM_PROMPT
-            + (PUBLISH_DRAFT_PROMPT if ctx.state.publish_requested else ""),
+            "content": build_system_prompt(ctx.settings.demo_mode, ctx.state.publish_requested),
         },
         {
             "role": "user",

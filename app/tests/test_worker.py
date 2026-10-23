@@ -370,3 +370,36 @@ async def test_validation_feedback_names_invalid_fields_without_echoing_article(
         entry = next(item for item in job.agent_trace if item.get("validation_errors"))
         assert entry["validation_errors"][0]["field"] == "summary"
         assert "private-generated-text" not in json.dumps(job.agent_trace)
+
+
+@pytest.mark.parametrize("demo_mode", [False, True])
+async def test_factuality_gate_can_be_disabled_for_demo(env, queued, demo_mode):
+    env.settings.demo_mode = demo_mode
+    args = article_args() | {"needs_verification": True}
+    env.llm.responses = successful_responses()[:2] + [
+        tool_call("save_article", args),
+        tool_call("publish_article"),
+    ]
+    await worker(env).run_once()
+    async with env.db.sessions() as session:
+        job = await session.get(Job, queued.job_id)
+        publication = await session.scalar(select(Publication))
+        if demo_mode:
+            assert job.error == "auto_publish_disabled" and publication.status == "dry_run"
+        else:
+            assert job.error == "facts_require_verification" and publication is None
+    assert env.ghost.post_calls == 0
+
+
+async def test_demo_preserves_html_validation(env, queued):
+    env.settings.demo_mode = True
+    args = article_args() | {
+        "needs_verification": True,
+        "content_html": "<script>" + "x" * 150 + "</script>",
+    }
+    env.llm.responses = successful_responses()[:2] + [tool_call("save_article", args)]
+    await worker(env).run_once()
+    async with env.db.sessions() as session:
+        job = await session.get(Job, queued.job_id)
+        assert job.error == "article_body_too_short_after_sanitization"
+    assert env.ghost.post_calls == 0

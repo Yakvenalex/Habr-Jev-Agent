@@ -12,7 +12,10 @@
       rel="stylesheet"
       href="{{ url_for('static', path='/dashboard.css').path }}"
     />
-    <script src="{{ url_for('static', path='/dashboard.js').path }}" defer></script>
+    <script
+      src="{{ url_for('static', path='/dashboard.js').path }}"
+      defer
+    ></script>
   </head>
   <body
     data-auto-publish="{{ 'true' if auto_publish else 'false' }}"
@@ -40,6 +43,11 @@
             <p class="lede">
               Отправь исходный материал и посмотри, как агент принимает решения.
             </p>
+            {% if demo_mode %}
+            <p class="demo-label">
+              Демо Laya + Gemma · достоверность исходника не проверяется
+            </p>
+            {% endif %}
           </div>
           <div class="mode">
             <span class="mode-dot {{ 'live' if auto_publish else '' }}"></span>

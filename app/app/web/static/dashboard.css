@@ -943,3 +943,9 @@ footer {
 .outcome-reason {
   white-space: pre-line;
 }
+
+.demo-label {
+  font-size: 10px;
+  color: #7d8d76;
+  margin: 12px 0 0;
+}

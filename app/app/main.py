@@ -66,6 +66,7 @@ def create_app(settings: Settings | None = None, *, db=None, laya=None, llm=None
                 "auto_publish": settings.auto_publish,
                 "max_steps": settings.agent_max_steps,
                 "max_posts": settings.max_posts_per_hour,
+                "demo_mode": settings.demo_mode,
                 "username": current_user(request),
             },
             headers={"Cache-Control": "no-store"},
