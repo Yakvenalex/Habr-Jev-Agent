@@ -1,0 +1,49 @@
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      APP_HOST: 0.0.0.0
+      DATABASE_URL: sqlite+aiosqlite:///./data/agent.db
+    ports:
+      - "127.0.0.1:${APP_PORT:-8001}:${APP_PORT:-8001}"
+    volumes:
+      - agent-data:/srv/app/data
+    networks:
+      - agent-net
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", ".venv/bin/python", "-c", "import os,urllib.request; urllib.request.urlopen('http://127.0.0.1:'+os.getenv('APP_PORT','8001')+'/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+  worker:
+    build: .
+    command: [".venv/bin/python", "-m", "app.worker"]
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:///./data/agent.db
+    volumes:
+      - agent-data:/srv/app/data
+    networks:
+      - agent-net
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 240s
+    depends_on:
+      api: {condition: service_healthy}
+    logging:
+      driver: json-file
+      options: {max-size: 10m, max-file: "3"}
+
+volumes:
+  agent-data:
+
+networks:
+  agent-net:
+    external: true
