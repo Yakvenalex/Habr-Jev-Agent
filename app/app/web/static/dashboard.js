@@ -33,6 +33,8 @@
     similar_publication_exists: "Похожая новость уже опубликована.",
     missing_identifiable_source_url:
       "Для статьи нужна ссылка на первоисточник.",
+    source_url_restored:
+      "Ссылка сохранена. Новость повторно отправлена агенту.",
     facts_require_verification:
       "Материал требует дополнительной проверки фактов.",
     hourly_publication_limit: "Достигнут часовой лимит публикаций.",
@@ -410,6 +412,8 @@
       if (result.status === "duplicate") notice(reasons.already_processed);
       else if (result.reason === "classification_retry")
         notice(reasons.classification_retry);
+      else if (result.reason === "source_url_restored")
+        notice(reasons.source_url_restored);
     } catch (error) {
       if (ticket === generation) {
         badge("failed");

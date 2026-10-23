@@ -99,6 +99,63 @@ async def test_concurrent_duplicate(env, payload):
         assert await session.scalar(select(func.count()).select_from(Job)) == 1
 
 
+async def test_resubmit_missing_source_restores_job_once(client, env, payload):
+    from conftest import successful_responses
+
+    from app.worker import Worker
+
+    without_url = copy.deepcopy(payload)
+    del without_url["source"]["url"]
+    first = (await client.post("/v1/news", json=without_url)).json()
+    env.llm.responses = successful_responses()
+    worker = Worker(env.db, env.settings, env.laya, env.llm, env.ghost)
+    await worker.run_once()
+    assert (await client.get("/v1/jobs/" + first["job_id"])).json()["error"] == (
+        "missing_identifiable_source_url"
+    )
+
+    responses = await asyncio.gather(*[client.post("/v1/news", json=payload) for _ in range(3)])
+    assert sorted(r.status_code for r in responses) == [200, 200, 202]
+    repaired = next(r.json() for r in responses if r.status_code == 202)
+    assert repaired["id"] == first["id"] and repaired["job_id"] == first["job_id"]
+    assert repaired["reason"] == "source_url_restored"
+    env.llm.responses = successful_responses()
+    await worker.run_once()
+    article = (await client.get("/v1/news/" + first["id"] + "/article")).json()
+    assert article["status"] == "dry_run"
+    assert article["source_url"] == payload["source"]["url"]
+    assert payload["source"]["url"] in article["content_html"]
+    async with env.db.sessions() as session:
+        assert await session.scalar(select(func.count()).select_from(News)) == 1
+        assert await session.scalar(select(func.count()).select_from(Job)) == 1
+
+
+@pytest.mark.parametrize("change", ["active", "different_content", "conflicting_url"])
+async def test_source_repair_does_not_modify_other_work(client, env, payload, change):
+    without_url = copy.deepcopy(payload)
+    del without_url["source"]["url"]
+    first = (await client.post("/v1/news", json=without_url)).json()
+    async with env.db.sessions() as session:
+        news = await session.get(News, first["id"])
+        job = await session.get(Job, first["job_id"])
+        news.status = job.status = "skipped"
+        news.reason = job.error = "missing_identifiable_source_url"
+        if change == "active":
+            job.status = "processing"
+        await session.commit()
+    if change == "different_content":
+        payload["content"] = "Другой исходный материал"
+    elif change == "conflicting_url":
+        other = copy.deepcopy(payload)
+        other["content"] = "Другой текст новости"
+        other["source"]["external_id"] = "other"
+        assert (await client.post("/v1/news", json=other)).status_code == 202
+    response = await client.post("/v1/news", json=payload)
+    assert response.status_code == 200
+    async with env.db.sessions() as session:
+        assert (await session.get(News, first["id"])).source_url is None
+
+
 @pytest.mark.parametrize(
     ("category", "probabilities", "expected"),
     [

@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.exc import IntegrityError
 
 from app.agent.state import LeaseLost
-from app.db.models import Job, News, uid, utcnow
+from app.db.models import Job, News, Publication, uid, utcnow
 from app.schemas.news import NewsInput, NewsResult, normalize_text
 from app.services.routing import should_queue
 
@@ -54,8 +54,50 @@ class Ingestion:
         url = normalize_url(str(data.source.url)) if data.source.url else None
         condition = duplicate_conditions(data, digest, url)
         async with self.db.sessions() as session:
+            await session.execute(text("BEGIN IMMEDIATE"))
             existing = await session.scalar(select(News).where(condition).limit(1))
             if existing:
+                # Resubmitting the same text with its missing source repairs the
+                # stopped job, rather than trapping the user in duplicate detection.
+                if (
+                    url
+                    and existing.content_hash == digest
+                    and not existing.source_url
+                    and existing.status == "skipped"
+                    and existing.reason == "missing_identifiable_source_url"
+                ):
+                    job = await session.scalar(select(Job).where(Job.news_id == existing.id))
+                    publication = await session.scalar(
+                        select(Publication.id).where(Publication.news_id == existing.id)
+                    )
+                    conflict = await session.scalar(
+                        select(News.id).where(News.normalized_source_url == url)
+                    )
+                    if job and job.status == "skipped" and publication is None and conflict is None:
+                        existing.source_url, existing.normalized_source_url = (
+                            str(data.source.url),
+                            url,
+                        )
+                        existing.status, existing.reason = "queued", None
+                        job.status, job.attempts, job.current_step = "queued", 0, 0
+                        job.error, job.lease_token, job.lease_until = None, None, None
+                        job.started_at, job.finished_at, job.publish_requested = None, None, False
+                        job.agent_trace = list(job.agent_trace or []) + [
+                            {
+                                "event": "processing_restarted",
+                                "reason": "source_url_restored",
+                                "at": utcnow().isoformat(),
+                            }
+                        ]
+                        await session.commit()
+                        return NewsResult(
+                            id=existing.id,
+                            status="queued",
+                            category=existing.category,
+                            job_id=job.id,
+                            reason="source_url_restored",
+                            agent_started=True,
+                        ), 202
                 return NewsResult(
                     id=existing.id, status="duplicate", reason="already_processed"
                 ), 200
