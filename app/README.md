@@ -1,6 +1,8 @@
 # FastAPI-приложение Habr-Jev-Agent
 
-Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2, SQLite WAL, httpx,
+Подробная инструкция к приложению из [основного README](../README.md).
+
+Python 3.12, FastAPI, Jinja2, Pydantic v2, SQLAlchemy 2, SQLite WAL, httpx,
 AsyncOpenAI, PyJWT, RapidFuzz и nh3. Без агентных фреймворков и внешней очереди.
 
 ## Локальный запуск
@@ -11,6 +13,11 @@ AsyncOpenAI, PyJWT, RapidFuzz и nh3. Без агентных фреймворк
 cp .env.example .env
 chmod 600 .env
 uv sync --frozen
+```
+
+Заполни `.env` по списку ниже, затем запусти API:
+
+```bash
 uv run python -m app.main
 ```
 
@@ -23,14 +30,19 @@ uv run python -m app.worker
 Настрой `.env`:
 
 - `APP_ACCESS_TOKENS` — один или несколько длинных случайных токенов через запятую.
-  При пустом списке все защищённые запросы отклоняются.
+  При пустом списке Bearer-авторизация недоступна; браузер может использовать сессию.
+- `WEB_USERNAME`, `WEB_PASSWORD` — логин и пароль для браузера.
+- `WEB_SESSION_SECRET` — случайный ключ подписи сессии, минимум 32 символа.
+  Например: `uv run python -c 'import secrets; print(secrets.token_urlsafe(48))'`.
 - `DEV_PROXY_KEY` — временный ключ HTTPS-прокси, передаётся только Laya и Gemma
   в `X-Dev-Key`. Ghost этот ключ не получает.
 - `GHOST_URL`, `GHOST_ADMIN_API_KEY` — URL блога и полный Admin API key
   Custom Integration в формате `id:secret`. Content API key не подходит.
 - `AUTO_PUBLISH=false` — проверка с сохранением черновика только в SQLite;
-  запросов создания статьи в Ghost нет. Значение по умолчанию класса настроек —
-  `true`, но пример и локальный файл намеренно используют `false`.
+  автоматических запросов создания статьи в Ghost нет. Отдельное нажатие
+  **Опубликовать черновик** разрешает реальную публикацию выбранной статьи через агента.
+  Значение по умолчанию класса настроек — `true`, но пример и локальный файл
+  намеренно используют `false`.
 - `LAYA_BASE_URL=https://laya.yakvenalex-bypass.ru` и
   `LLM_BASE_URL=https://llm.yakvenalex-bypass.ru/v1` — режим разработки.
 
@@ -93,9 +105,14 @@ curl http://127.0.0.1:8001/v1/news \
 - HTTP 202, `reason=classification_retry`, `agent_started=false`: Laya недоступна
   или вернула некорректную структуру. Запись и задача уже сохранены, worker повторит
   классификацию. При падении API посреди запроса worker подхватывает задачу после lease.
+- `GET /v1/news` — последние 20 новостей с идентификаторами задач для истории.
 - `GET /v1/news/{uuid}` — сохранённая новость, категория, вероятности, статус, причина.
+- `GET /v1/news/{uuid}/article` — сохранённая статья, ссылка Ghost, `can_publish` и `publish_pending`.
+- `POST /v1/news/{uuid}/publish` — запрос публикации проверенного черновика агентом;
+  HTTP 202 для принятой или уже запущенной задачи, HTTP 200 для уже опубликованной
+  статьи, HTTP 409 для неподходящего состояния, HTTP 404 при отсутствии статьи.
 - `GET /v1/jobs/{uuid}` — статус задачи, число шагов и попыток, ошибка,
-  `publication_status` и `ghost_url`.
+  `publication_status`, `publish_requested`, `agent_trace` и `ghost_url`.
 - `GET /health` — процесс жив; `GET /ready` — база, загруженная Laya, модель Gemma
   и Ghost Admin API (Ghost проверяется при `AUTO_PUBLISH=true`). При сбое HTTP 503.
 
@@ -182,13 +199,13 @@ Python, браузера или произвольной загрузки URL.
 
 ## Docker Compose на сервере
 
-Сначала запусти существующие проекты `laya/`, `llm/`, `blog/` по их настройкам.
-Создай общую сеть, если её ещё нет:
+Перед запуском проектов `laya/` и `llm/` создай общую сеть, если её ещё нет:
 
 ```bash
 docker network create agent-net
 ```
 
+Затем запусти `laya/`, `llm/` и `blog/` по их настройкам.
 В `app/.env` измени только настройки:
 
 ```dotenv
@@ -231,7 +248,8 @@ uv run pytest -q
 Автотесты используют временные SQLite и фиктивные Laya/Gemma/Ghost. Покрыты
 авторизация, валидация, маршрутизация, точные дубли и конкурентные запросы,
 tool calling, ошибки сервисов, лимиты, очистка HTML, восстановление lease,
-повторные попытки и неопределённый результат отправки в Ghost.
+повторные попытки и неопределённый результат отправки в Ghost. Текущий набор —
+81 тест; интеграционный тест реальных моделей по умолчанию пропускается.
 
 Ручной интеграционный тест вызывает настоящие Laya и Gemma из `.env`, включая tool call,
 но не публикует в блог:
