@@ -327,3 +327,46 @@ async def test_premature_completion_cannot_bypass_publish_checks(env, queued):
         job = await session.get(Job, queued.job_id)
         assert job.error == "auto_publish_disabled" and job.current_step == 5
         assert any(item.get("event") == "premature_completion" for item in job.agent_trace)
+
+
+async def test_factuality_rejection_preserves_model_explanation(env, queued):
+    notes = "Источник не подтвердил сделку, поэтому сумму нельзя выдавать за установленный факт."
+    args = article_args() | {"needs_verification": True, "factuality_notes": notes}
+    env.llm.responses = successful_responses()[:2] + [tool_call("save_article", args)]
+    await worker(env).run_once()
+    async with env.db.sessions() as session:
+        job = await session.get(Job, queued.job_id)
+        assert job.error == "facts_require_verification"
+        rejected = job.agent_trace[-1]
+        assert rejected["tool"] == "save_article"
+        assert rejected["error"] == "facts_require_verification"
+        assert rejected["detail"] == notes
+        assert (await session.scalar(select(Publication))) is None
+    assert env.ghost.post_calls == 0
+
+
+async def test_validation_feedback_names_invalid_fields_without_echoing_article(env, queued):
+    captured = []
+
+    class InspectLLM(FakeLLM):
+        async def complete(self, messages, tools):
+            captured.extend(message["content"] for message in messages if message["role"] == "tool")
+            return await super().complete(messages, tools)
+
+    invalid = article_args() | {"summary": "private-generated-text-" * 20}
+    env.llm = InspectLLM(
+        successful_responses()[:2]
+        + [
+            tool_call("save_article", invalid),
+            {"role": "assistant", "content": '{"outcome":"skipped","reason":"Needs correction"}'},
+        ]
+    )
+    await worker(env).run_once()
+    feedback = [json.loads(content) for content in captured if "invalid_tool_arguments" in content]
+    assert feedback and feedback[-1]["validation_errors"][0]["field"] == "summary"
+    assert "private-generated-text" not in json.dumps(feedback)
+    async with env.db.sessions() as session:
+        job = await session.get(Job, queued.job_id)
+        entry = next(item for item in job.agent_trace if item.get("validation_errors"))
+        assert entry["validation_errors"][0]["field"] == "summary"
+        assert "private-generated-text" not in json.dumps(job.agent_trace)

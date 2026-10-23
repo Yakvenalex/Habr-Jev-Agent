@@ -8,6 +8,10 @@ class LeaseLost(Exception):
 class RejectArticle(Exception):
     """A fail-closed publication policy decision."""
 
+    def __init__(self, code: str, detail: str | None = None):
+        super().__init__(code)
+        self.detail = detail
+
 
 class PublicationUncertain(Exception):
     """Reconcile by slug, never blindly repeat a potentially successful POST."""

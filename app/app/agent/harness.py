@@ -98,10 +98,36 @@ async def run_agent(ctx, llm):
                     schema, function, _ = TOOLS[name]
                     try:
                         args = schema.model_validate_json(call["function"].get("arguments", "{}"))
-                    except (ValidationError, TypeError):
+                    except ValidationError as error:
+                        result = {
+                            "error": "invalid_tool_arguments",
+                            "validation_errors": [
+                                {
+                                    "field": ".".join(map(str, item["loc"])),
+                                    "message": item["msg"],
+                                }
+                                for item in error.errors(include_input=False, include_url=False)[
+                                    :10
+                                ]
+                            ],
+                        }
+                    except TypeError:
                         result = {"error": "invalid_tool_arguments"}
                     else:
-                        result = await function(ctx, args)
+                        try:
+                            result = await function(ctx, args)
+                        except RejectArticle as error:
+                            await checkpoint(
+                                ctx,
+                                step,
+                                {
+                                    "step": step,
+                                    "tool": name,
+                                    "error": str(error),
+                                    "detail": error.detail,
+                                },
+                            )
+                            raise
                 await checkpoint(
                     ctx,
                     step,
@@ -110,6 +136,11 @@ async def run_agent(ctx, llm):
                         "tool": name,
                         "result_status": result.get("status"),
                         "error": result.get("error"),
+                        **(
+                            {"validation_errors": result["validation_errors"]}
+                            if "validation_errors" in result
+                            else {}
+                        ),
                     },
                 )
                 messages.append(

@@ -53,7 +53,7 @@ async def save_article(ctx, args):
     if ctx.state.publish_requested:
         raise RejectArticle("saved_draft_is_read_only")
     if args.needs_verification:
-        raise RejectArticle("facts_require_verification")
+        raise RejectArticle("facts_require_verification", detail=args.factuality_notes)
     if not ctx.state.source_checked or not ctx.state.duplicates_checked:
         raise RejectArticle("source_and_duplicates_must_be_checked_first")
     html = clean_html(args.content_html)

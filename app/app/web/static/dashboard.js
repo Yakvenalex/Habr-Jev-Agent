@@ -248,7 +248,12 @@
                 : "Ожидаем статью и финальные проверки",
     );
     if (job.error) {
-      $("outcome-reason").textContent = reasons[job.error] || job.error;
+      const detail = (job.agent_trace || []).findLast(
+        (entry) => entry.error === job.error && entry.detail,
+      )?.detail;
+      $("outcome-reason").textContent =
+        (reasons[job.error] || job.error) +
+        (detail ? `\n\nПояснение модели: ${detail}` : "");
       $("outcome-reason").hidden = false;
     }
     return terminal;

@@ -939,3 +939,7 @@ footer {
     margin-top: 5px;
   }
 }
+
+.outcome-reason {
+  white-space: pre-line;
+}
