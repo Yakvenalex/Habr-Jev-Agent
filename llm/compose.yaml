@@ -1,0 +1,63 @@
+services:
+  llm:
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    container_name: gemma4-llm
+    restart: unless-stopped
+
+    gpus: all
+
+    ports:
+      - "127.0.0.1:8080:8080"
+
+    environment:
+      HF_TOKEN: ${HF_TOKEN:-}
+      LLAMA_CACHE: /cache
+
+    volumes:
+      - ./cache:/cache
+
+    command:
+      # Модель
+      - --hf-repo
+      - ggml-org/gemma-4-26B-A4B-it-GGUF:Q4_0
+      - --alias
+      - gemma4
+
+      # HTTP API
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+
+      # Контекст 128K
+      - --ctx-size
+      - "131072"
+
+      # Один параллельный запрос
+      - --parallel
+      - "1"
+
+      # Ускорение Attention
+      - --flash-attn
+      - "on"
+
+      # Полная загрузка модели на GPU
+      - --n-gpu-layers
+      - "99"
+
+      # Не уменьшать контекст автоматически
+      - --fit
+      - "off"
+
+      # Поддержка Tool Calling
+      - --jinja
+
+      # Без мультимодального проектора
+      - --no-mmproj
+
+    networks:
+      - agent-net
+
+networks:
+  agent-net:
+    external: true

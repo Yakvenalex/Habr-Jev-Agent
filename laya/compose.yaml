@@ -1,0 +1,62 @@
+services:
+  laya:
+    build:
+      context: ./source
+      args:
+        TORCH_INDEX: cpu
+        TORCH_VERSION: "2.14.0"
+
+    container_name: laya-cpu
+    restart: unless-stopped
+
+    command: ["laya-serve"]
+
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    environment:
+      LAYA_HOST: "0.0.0.0"
+      LAYA_PORT: "8000"
+
+      # Запускаем только на процессоре
+      LAYA_DEVICE: cpu
+
+      # Количество потоков
+      LAYA_THREADS: "8"
+      OMP_NUM_THREADS: "8"
+
+      # Загружаем модель при старте
+      LAYA_PRELOAD: "1"
+
+      # Пока только мультиязычный чекпоинт
+      LAYA_MODELS: multilingual
+      LAYA_DEFAULT_MODEL: multilingual
+
+      # Кеш Hugging Face
+      HF_HOME: /home/laya/.cache/huggingface
+
+    volumes:
+      - laya-cache:/home/laya/.cache/huggingface
+
+    networks:
+      - agent-net
+
+    init: true
+
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10m
+
+volumes:
+  laya-cache:
+
+networks:
+  agent-net:
+    external: true

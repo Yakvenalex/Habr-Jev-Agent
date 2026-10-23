@@ -1,0 +1,29 @@
+# Secrets
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+
+# Models and caches
+**/cache/
+**/models/
+**/*.gguf
+**/*.safetensors
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/.venv/
+.pytest_cache/
+
+# Runtime
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.log
+**/data/
+
+# IDE
+.idea/
+.vscode/

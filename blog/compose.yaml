@@ -1,0 +1,52 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: ghost-db
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    volumes:
+      - ghost-db-data:/var/lib/mysql
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "mysql -h 127.0.0.1 -u\"$$MYSQL_USER\" -p\"$$MYSQL_PASSWORD\" -e 'SELECT 1' >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+
+  ghost:
+    image: ghost:6-alpine
+    container_name: ghost-blog
+    restart: unless-stopped
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      - "127.0.0.1:2368:2368"
+
+    environment:
+      NODE_ENV: production
+      url: https://${BLOG_DOMAIN}
+
+      database__client: mysql
+      database__connection__host: db
+      database__connection__user: ghost
+      database__connection__password: ${MYSQL_PASSWORD}
+      database__connection__database: ghost
+
+    volumes:
+      - ghost-content:/var/lib/ghost/content
+
+volumes:
+  ghost-db-data:
+  ghost-content:
